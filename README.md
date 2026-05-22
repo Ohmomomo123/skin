@@ -38,7 +38,8 @@
 ├── templates/
 │   └── index.html      # 上傳介面與結果顯示
 ├── docs/
-│   └── 協作指南.md     # GitHub 協作、clone、push 教學（給團隊成員）
+│   ├── 協作指南.md     # 分支開發、PR 送審流程（給協作者）
+│   └── 管理員設定.md   # main 分支保護、審核 PR（給管理員）
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -46,7 +47,12 @@
 
 ## 團隊協作
 
-若要參與開發、把程式推上 GitHub，請閱讀 **[docs/協作指南.md](docs/協作指南.md)**（含權限申請、clone、commit、push、衝突處理）。
+本專案採 **分支 → Pull Request → 管理員審核** 後才合併 `main`，請勿直接 push 到 `main`。
+
+| 角色 | 文件 |
+|------|------|
+| 協作者 | [docs/協作指南.md](docs/協作指南.md) |
+| 管理員（Ohmomomo123） | [docs/管理員設定.md](docs/管理員設定.md) |
 
 ## 環境需求
 
