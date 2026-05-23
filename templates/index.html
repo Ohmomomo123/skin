@@ -5,183 +5,446 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 皮膚狀態偵測</title>
   <style>
+    /* ─── Reset ─── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, sans-serif; background: #f5f7fa; color: #333; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #f0f4f8; color: #333; min-height: 100vh; }
 
+    /* ─── Header ─── */
     .header {
-      background: linear-gradient(135deg, #1F5C9E, #2e86de);
-      color: white; padding: 24px 20px; text-align: center;
+      background: linear-gradient(135deg, #1a4f8a, #2e86de);
+      color: white; padding: 18px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
     }
-    .header h1 { font-size: 22px; margin-bottom: 6px; }
-    .header p { font-size: 13px; opacity: 0.85; }
+    .header-title h1 { font-size: 20px; margin-bottom: 2px; }
+    .header-title p  { font-size: 12px; opacity: 0.8; }
+    .history-btn {
+      background: rgba(255,255,255,0.18); color: white;
+      border: 1px solid rgba(255,255,255,0.45);
+      border-radius: 20px; padding: 7px 16px; font-size: 13px;
+      cursor: pointer; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+    }
+    .history-btn:hover  { background: rgba(255,255,255,0.28); }
+    .history-btn:active { background: rgba(255,255,255,0.35); }
 
-    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
+    /* ─── Two-column layout ─── */
+    .page-layout {
+      max-width: 1140px; margin: 0 auto; padding: 28px 24px;
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ─── Left column ─── */
+    .left-col { position: sticky; top: 80px; }
 
     .upload-box {
-      background: white; border-radius: 16px; padding: 30px 20px;
+      background: white; border-radius: 18px; padding: 32px 20px;
       text-align: center; border: 2px dashed #1F5C9E;
-      cursor: pointer; margin-bottom: 16px;
+      cursor: pointer; margin-bottom: 14px;
+      transition: border-color 0.2s, background 0.2s;
     }
+    .upload-box:hover { background: #f0f6fc; border-color: #2e86de; }
     .upload-box input { display: none; }
-    .upload-box .icon { font-size: 48px; margin-bottom: 12px; }
-    .upload-box p { color: #666; font-size: 14px; }
+    .upload-box .icon { font-size: 44px; margin-bottom: 10px; }
+    .upload-box p { color: #888; font-size: 14px; }
 
-    #preview { width: 100%; border-radius: 12px; margin-bottom: 16px; display: none; }
+    #preview {
+      width: 100%; border-radius: 14px; margin-bottom: 14px;
+      display: none; object-fit: contain;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
 
     .btn {
       width: 100%; padding: 14px; background: #1F5C9E;
       color: white; border: none; border-radius: 12px;
       font-size: 16px; font-weight: bold; cursor: pointer;
-      display: none;
+      display: none; transition: background 0.2s;
     }
-    .btn:active { background: #174a82; }
+    .btn:hover  { background: #1a4f8a; }
+    .btn:active { background: #143e70; }
 
-    .result-card {
-      background: white; border-radius: 16px; padding: 20px;
-      margin-top: 16px; display: none;
-    }
-    .result-card > h2 {
-      font-size: 16px; color: #888; margin-bottom: 16px; text-align: center;
+    .loading { text-align: center; padding: 24px; display: none; }
+    .loading p { color: #1F5C9E; font-size: 14px; margin-top: 10px; }
+
+    .disclaimer {
+      font-size: 11px; color: #aaa; text-align: center;
+      margin-top: 20px; line-height: 1.7; padding: 0 4px;
     }
 
-    .result-title { text-align: center; margin-bottom: 18px; }
+    /* ─── Right column ─── */
+    .right-col-empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 320px;
+      background: white; border-radius: 20px;
+      color: #ccc; font-size: 15px; gap: 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    }
+    .right-col-empty .empty-icon { font-size: 54px; }
+
+    /* ─── Result sections ─── */
+    .result-card { display: none; }
+
+    /* Hero: name + severity badge */
+    .result-hero {
+      background: white; border-radius: 20px; padding: 28px 26px 22px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.07);
+    }
+    .result-hero-top {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 16px; margin-bottom: 10px;
+    }
+    .result-name-wrap { flex: 1; min-width: 0; }
     .simple-name {
-      font-size: 28px; font-weight: bold; color: #1a1a1a;
-      line-height: 1.3; margin-bottom: 4px;
+      font-size: 34px; font-weight: 800; color: #111;
+      line-height: 1.2; margin-bottom: 5px;
     }
-    .pro-name { font-size: 13px; color: #888; }
+    .pro-name { font-size: 13px; color: #aaa; }
 
-    .section { margin-bottom: 14px; }
-    .section .tag {
-      font-size: 11px; color: #888; margin-bottom: 8px; letter-spacing: 0.5px;
+    .severity-banner {
+      border-radius: 10px; padding: 8px 14px;
+      font-weight: 700; white-space: nowrap; flex-shrink: 0;
+      text-align: center; line-height: 1.3;
+    }
+    .severity-banner .main { font-size: 13px; font-weight: 700; }
+    .severity-high   { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; }
+    .severity-medium { background: #fef5e7; color: #d35400; border: 1px solid #f5cba7; }
+    .severity-low    { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; }
+
+    .confidence-hint { font-size: 12px; color: #bbb; margin-top: 6px; }
+
+    /* Generic section card */
+    .result-section {
+      background: white; border-radius: 16px; padding: 22px 24px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.07);
+    }
+    .section-label {
+      font-size: 11px; font-weight: 700; color: #bbb;
+      letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 12px;
     }
 
     .highlight-box {
-      background: #f8f9fb; border-radius: 12px; padding: 16px;
+      background: #f8f9fb; border-radius: 10px; padding: 14px 16px;
     }
-    .highlight-box .main-text {
-      font-size: 16px; line-height: 1.6; color: #333;
-    }
-
-    .severity-banner {
-      border-radius: 14px; padding: 18px 16px; text-align: center;
-    }
-    .severity-banner .main { font-size: 20px; font-weight: bold; }
-    .severity-high { background: #fdecea; color: #c0392b; }
-    .severity-medium { background: #fef9e7; color: #b7770d; }
-    .severity-low { background: #eafaf1; color: #1e8449; }
-
-    .confidence-hint {
-      font-size: 12px; color: #aaa; text-align: center;
-      margin-top: 8px; margin-bottom: 4px;
-    }
+    .highlight-box .main-text { font-size: 15px; line-height: 1.7; color: #444; }
 
     .action-box {
       background: #f0f6fc; border-left: 4px solid #1F5C9E;
-      border-radius: 0 12px 12px 0; padding: 16px;
+      border-radius: 0 10px 10px 0; padding: 14px 16px;
     }
-    .action-box .main-text { font-size: 15px; line-height: 1.6; color: #333; }
+    .action-box .main-text { font-size: 15px; line-height: 1.7; color: #333; }
 
+    /* Care: 3-column cards */
+    .care-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .care-card {
+      background: #f6fdf9; border: 1px solid #c8edd6;
+      border-radius: 14px; padding: 16px 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .care-card-icon  { font-size: 22px; }
+    .care-card-label {
+      font-size: 11px; font-weight: 700; color: #2e7d4f; letter-spacing: 0.3px;
+    }
+    .care-card-text  { font-size: 13px; line-height: 1.65; color: #444; }
+
+    /* Bar chart */
     .toggle-details {
-      width: 100%; padding: 12px; background: #f5f7fa;
-      border: 1px solid #e0e0e0; border-radius: 12px;
-      font-size: 14px; color: #555; cursor: pointer; font-weight: 600;
-      margin-top: 4px;
+      width: 100%; padding: 12px 16px; background: #f5f7fa;
+      border: 1px solid #e4e4e4; border-radius: 12px;
+      font-size: 14px; color: #555; cursor: pointer;
+      font-weight: 600; text-align: left;
     }
-    .toggle-details:active { background: #ebebeb; }
+    .toggle-details:hover  { background: #eaecef; }
+    .toggle-details:active { background: #e0e3e7; }
 
-    .bar-section { display: none; margin-top: 12px; }
+    .bar-section { display: none; margin-top: 16px; }
     .bar-section.open { display: block; }
-    .bar-section h3 { font-size: 13px; color: #888; margin-bottom: 12px; }
-
-    .bar-item { margin-bottom: 12px; }
+    .bar-section h3 {
+      font-size: 11px; color: #bbb; margin-bottom: 14px;
+      text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    .bar-item { margin-bottom: 14px; }
     .bar-label { font-size: 13px; color: #333; font-weight: 600; margin-bottom: 2px; }
-    .bar-desc { font-size: 11px; color: #888; margin-bottom: 4px; line-height: 1.4; }
-    .bar-meta { font-size: 11px; color: #999; margin-bottom: 4px; display: flex; justify-content: space-between; }
-    .bar-bg { background: #e8e8e8; border-radius: 6px; height: 8px; }
-    .bar-fill { background: #1F5C9E; height: 8px; border-radius: 6px; transition: width 0.6s ease; }
+    .bar-desc  { font-size: 11px; color: #aaa; margin-bottom: 5px; line-height: 1.4; }
+    .bar-meta  { font-size: 11px; color: #bbb; margin-bottom: 4px;
+                 display: flex; justify-content: space-between; }
+    .bar-bg    { background: #e8e8e8; border-radius: 6px; height: 7px; }
+    .bar-fill  { background: #1F5C9E; height: 7px; border-radius: 6px;
+                 transition: width 0.6s ease; }
 
-    .disclaimer {
-      font-size: 11px; color: #999; text-align: center;
-      margin-top: 20px; padding: 0 10px; line-height: 1.6;
+    /* ─── History modal ─── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 1000; display: none; align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-panel {
+      background: white; border-radius: 24px 24px 0 0;
+      width: 100%; max-width: 520px; max-height: 85vh;
+      display: flex; flex-direction: column;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 20px 14px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0;
+    }
+    .modal-header h2 { font-size: 18px; font-weight: 700; }
+    .modal-close {
+      background: #f5f7fa; border: none; width: 32px; height: 32px;
+      border-radius: 50%; font-size: 16px; cursor: pointer; color: #555;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-body   { overflow-y: auto; flex: 1; padding: 12px 20px; }
+    .modal-footer { padding: 12px 20px 24px; border-top: 1px solid #f0f0f0; flex-shrink: 0; }
+    .history-empty { text-align: center; padding: 48px 20px; color: #bbb; font-size: 14px; }
+    .history-empty .icon { font-size: 44px; margin-bottom: 12px; }
+    .history-item {
+      display: flex; gap: 12px; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid #f5f5f5;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-thumb  { width: 62px; height: 62px; border-radius: 10px;
+                      object-fit: cover; flex-shrink: 0; background: #eee; }
+    .history-info   { flex: 1; min-width: 0; }
+    .history-name   { font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
+    .history-time   { font-size: 11px; color: #bbb; margin-bottom: 7px; }
+    .history-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .badge        { font-size: 11px; font-weight: 600; border-radius: 8px; padding: 3px 8px; }
+    .badge-high   { background: #fdecea; color: #c0392b; }
+    .badge-medium { background: #fef9e7; color: #b7770d; }
+    .badge-low    { background: #eafaf1; color: #1e8449; }
+    .badge-conf   { background: #f0f6fc; color: #1F5C9E; }
+    .clear-btn {
+      width: 100%; padding: 12px; background: #fff0f0;
+      color: #c0392b; border: 1px solid #fcc; border-radius: 12px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .clear-btn:active { background: #ffe0e0; }
+
+    /* ─── Supported-diseases button ─── */
+    .supported-btn {
+      width: 100%; padding: 10px 14px; background: white;
+      color: #1F5C9E; border: 1.5px solid #c0d4ed; border-radius: 12px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      margin-top: 10px; display: flex; align-items: center;
+      justify-content: center; gap: 6px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .supported-btn:hover  { background: #f0f6fc; border-color: #1F5C9E; }
+    .supported-btn:active { background: #e4eef8; }
+
+    /* ─── Supported-diseases modal ─── */
+    .sup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 1000; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .sup-overlay.open { display: flex; }
+    .sup-panel {
+      background: white; border-radius: 20px;
+      width: 100%; max-width: 620px; max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .sup-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 16px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0;
+    }
+    .sup-header h2 { font-size: 17px; font-weight: 700; }
+    .sup-close {
+      background: #f5f7fa; border: none; width: 32px; height: 32px;
+      border-radius: 50%; font-size: 16px; cursor: pointer; color: #555;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sup-body { overflow-y: auto; flex: 1; padding: 18px 24px; }
+
+    .risk-group { margin-bottom: 24px; }
+    .risk-group:last-child { margin-bottom: 0; }
+    .risk-group-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.7px;
+      text-transform: uppercase; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .risk-group-title::after {
+      content: ''; flex: 1; height: 1px; background: currentColor; opacity: 0.15;
+    }
+    .risk-title-high   { color: #c0392b; }
+    .risk-title-medium { color: #d35400; }
+    .risk-title-low    { color: #1e8449; }
+
+    .disease-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    }
+    .disease-card {
+      border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .disease-card-high   { background: #fdf4f4; border: 1px solid #f5b7b1; }
+    .disease-card-medium { background: #fef8f0; border: 1px solid #f5cba7; }
+    .disease-card-low    { background: #f2faf5; border: 1px solid #a9dfbf; }
+
+    .disease-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-high   { background: #c0392b; }
+    .dot-medium { background: #d35400; }
+    .dot-low    { background: #1e8449; }
+
+    .disease-info { min-width: 0; }
+    .disease-simple { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .disease-name   { font-size: 11px; color: #999; margin-top: 1px; }
+
+    .sup-footer {
+      padding: 12px 24px 18px; border-top: 1px solid #f0f0f0;
+      font-size: 11px; color: #bbb; text-align: center; flex-shrink: 0;
     }
 
-    .loading { text-align: center; padding: 20px; display: none; }
-    .loading p { color: #1F5C9E; font-size: 14px; margin-top: 10px; }
+    /* ─── Mobile RWD (<= 768px) ─── */
+    @media (max-width: 768px) {
+      .header { position: relative; padding: 16px 16px; }
+      .header-title h1 { font-size: 18px; }
+      .page-layout {
+        grid-template-columns: 1fr;
+        padding: 16px 14px;
+        gap: 14px;
+      }
+      .left-col { position: static; }
+      .right-col-empty { display: none; }
+      .simple-name { font-size: 26px; }
+      .result-hero-top { flex-direction: column; gap: 10px; }
+      .care-grid { grid-template-columns: 1fr; gap: 10px; }
+      .result-hero,
+      .result-section { border-radius: 14px; padding: 16px 16px; margin-bottom: 12px; }
+      .sup-overlay { padding: 0; align-items: flex-end; }
+      .sup-panel { border-radius: 24px 24px 0 0; max-height: 85vh; }
+      .disease-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🩺 AI 皮膚狀態偵測</h1>
-  <p>用白話告訴你，這看起來像什麼、該怎麼辦</p>
+  <div class="header-title">
+    <h1>🩺 AI 皮膚狀態偵測</h1>
+    <p>用白話告訴你，這看起來像什麼、該怎麼辦</p>
+  </div>
+  <button class="history-btn" onclick="openHistoryModal()">📂 歷史紀錄</button>
 </div>
 
-<div class="container">
+<div class="page-layout">
 
-  <div class="upload-box" onclick="document.getElementById('fileInput').click()">
-    <input type="file" id="fileInput" accept="image/*" capture="environment">
-    <div class="icon">📷</div>
-    <p>點此拍照或上傳皮膚照片</p>
+  <!-- ── Left column: upload + preview ── -->
+  <div class="left-col">
+    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept="image/*" capture="environment">
+      <div class="icon">📷</div>
+      <p>點此拍照或上傳皮膚照片</p>
+    </div>
+
+    <button class="supported-btn" onclick="openSupportedModal()">🔍 查看可辨識的皮膚問題</button>
+
+    <img id="preview">
+    <button class="btn" id="analyzeBtn" onclick="analyze()">開始 AI 分析</button>
+
+    <div class="loading" id="loading">
+      <div style="font-size:40px">⏳</div>
+      <p>AI 分析中，請稍候...</p>
+    </div>
+
+    <p class="disclaimer">
+      ⚠️ 本系統為 AI 輔助初篩工具，結果僅供參考，<br>無法取代專業醫師診斷，如有疑慮請就醫。
+    </p>
   </div>
 
-  <img id="preview">
-  <button class="btn" id="analyzeBtn" onclick="analyze()">開始 AI 分析</button>
+  <!-- ── Right column: results ── -->
+  <div class="right-col">
 
-  <div class="loading" id="loading">
-    <div style="font-size:40px">⏳</div>
-    <p>AI 分析中，請稍候...</p>
+    <!-- Empty state placeholder -->
+    <div class="right-col-empty" id="emptyState">
+      <div class="empty-icon">🔍</div>
+      <p>上傳圖片後，辨識結果將顯示在這裡</p>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+
+      <!-- Hero: disease name + severity badge -->
+      <div class="result-hero">
+        <div class="result-hero-top">
+          <div class="result-name-wrap">
+            <div class="simple-name" id="resSimpleName">-</div>
+            <div class="pro-name" id="resProName">-</div>
+          </div>
+          <div class="severity-banner" id="severityBanner">
+            <div class="main" id="resSeverityText">-</div>
+          </div>
+        </div>
+        <p class="confidence-hint" id="resConfHint"></p>
+      </div>
+
+      <!-- Description -->
+      <div class="result-section">
+        <div class="section-label">這看起來像什麼？</div>
+        <div class="highlight-box">
+          <div class="main-text" id="resDescription">-</div>
+        </div>
+      </div>
+
+      <!-- Action -->
+      <div class="result-section">
+        <div class="section-label">我該怎麼辦？</div>
+        <div class="action-box">
+          <div class="main-text" id="resAction">-</div>
+        </div>
+      </div>
+
+      <!-- Care tips: 3-column cards -->
+      <div class="result-section">
+        <div class="section-label">保養建議</div>
+        <div class="care-grid">
+          <div class="care-card">
+            <div class="care-card-icon">🧴</div>
+            <div class="care-card-label">日常護理</div>
+            <div class="care-card-text" id="resCare">-</div>
+          </div>
+          <div class="care-card">
+            <div class="care-card-icon">🚫</div>
+            <div class="care-card-label">要避免</div>
+            <div class="care-card-text" id="resAvoid">-</div>
+          </div>
+          <div class="care-card">
+            <div class="care-card-icon">🏥</div>
+            <div class="care-card-label">何時就醫</div>
+            <div class="care-card-text" id="resSeeDoctor">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar chart -->
+      <div class="result-section">
+        <button type="button" class="toggle-details" id="toggleDetails" onclick="toggleBarChart()">
+          ▶ 查看完整分析（醫療專業資訊）
+        </button>
+        <div class="bar-section" id="barSection">
+          <h3 style="margin-top:16px">各類別可能程度（僅供參考）</h3>
+          <div id="barChart"></div>
+        </div>
+      </div>
+
+    </div>
   </div>
-
-  <div class="result-card" id="resultCard">
-    <h2>📋 分析結果</h2>
-
-    <div class="result-title">
-      <div class="simple-name" id="resSimpleName">-</div>
-      <div class="pro-name" id="resProName">-</div>
-    </div>
-
-    <div class="section">
-      <div class="tag">這看起來像什麼？</div>
-      <div class="highlight-box">
-        <div class="main-text" id="resDescription">-</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="tag">嚴重嗎？</div>
-      <div class="severity-banner" id="severityBanner">
-        <div class="main" id="resSeverityText">-</div>
-      </div>
-      <p class="confidence-hint" id="resConfHint"></p>
-    </div>
-
-    <div class="section">
-      <div class="tag">我該怎麼辦？</div>
-      <div class="action-box">
-        <div class="main-text" id="resAction">-</div>
-      </div>
-    </div>
-
-    <button type="button" class="toggle-details" id="toggleDetails" onclick="toggleBarChart()">
-      ▶ 查看完整分析（醫療專業資訊）
-    </button>
-
-    <div class="bar-section" id="barSection">
-      <h3>各類別可能程度（僅供參考）</h3>
-      <div id="barChart"></div>
-    </div>
-  </div>
-
-  <p class="disclaimer">
-    ⚠️ 本系統為 AI 輔助初篩工具，結果僅供參考，<br>無法取代專業醫師診斷，如有疑慮請就醫。
-  </p>
 
 </div>
 
 <script>
-  const fileInput = document.getElementById('fileInput');
-  const preview = document.getElementById('preview');
+  const fileInput  = document.getElementById('fileInput');
+  const preview    = document.getElementById('preview');
   const analyzeBtn = document.getElementById('analyzeBtn');
   let barChartOpen = false;
 
@@ -192,6 +455,7 @@
     preview.style.display = 'block';
     analyzeBtn.style.display = 'block';
     document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'flex';
     barChartOpen = false;
     document.getElementById('barSection').classList.remove('open');
     document.getElementById('toggleDetails').textContent =
@@ -206,6 +470,125 @@
       : '▶ 查看完整分析（醫療專業資訊）';
   }
 
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const HISTORY_KEY = 'skin_history';
+  const HISTORY_MAX = 10;
+
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+    catch { return []; }
+  }
+
+  function saveToHistory(data, base64Image) {
+    const records = getHistory();
+    records.unshift({
+      timestamp:      new Date().toISOString(),
+      simple_name:    data.simple_name,
+      severity_level: data.severity_level,
+      confidence:     data.confidence,
+      image_base64:   base64Image
+    });
+    if (records.length > HISTORY_MAX) records.splice(HISTORY_MAX);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(records));
+  }
+
+  function formatTime(isoStr) {
+    const d   = new Date(isoStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  const severityLabel = { high: '較嚴重', medium: '中等', low: '輕微' };
+
+  function renderHistoryList() {
+    const list    = document.getElementById('historyList');
+    const records = getHistory();
+    if (records.length === 0) {
+      list.innerHTML = '<div class="history-empty"><div class="icon">📭</div><p>還沒有辨識紀錄</p></div>';
+      return;
+    }
+    list.innerHTML = records.map(r => `
+      <div class="history-item">
+        <img class="history-thumb" src="${r.image_base64}" alt="縮圖">
+        <div class="history-info">
+          <div class="history-name">${r.simple_name}</div>
+          <div class="history-time">${formatTime(r.timestamp)}</div>
+          <div class="history-badges">
+            <span class="badge badge-${r.severity_level}">${severityLabel[r.severity_level] || r.severity_level}</span>
+            <span class="badge badge-conf">信心 ${r.confidence}%</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openHistoryModal() {
+    renderHistoryList();
+    document.getElementById('historyModal').classList.add('open');
+  }
+
+  function closeHistoryModal(e) {
+    if (e && e.target !== document.getElementById('historyModal')) return;
+    document.getElementById('historyModal').classList.remove('open');
+  }
+
+  function clearAllHistory() {
+    if (!confirm('確定要清除全部歷史紀錄？')) return;
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistoryList();
+  }
+
+  const RISK_META = {
+    high:   { label: '⚠️ 高風險',  titleClass: 'risk-title-high',   cardClass: 'disease-card-high',   dotClass: 'dot-high'   },
+    medium: { label: '💡 中風險',  titleClass: 'risk-title-medium',  cardClass: 'disease-card-medium',  dotClass: 'dot-medium'  },
+    low:    { label: '✅ 低風險',  titleClass: 'risk-title-low',    cardClass: 'disease-card-low',    dotClass: 'dot-low'    },
+  };
+
+  let supportedCache = null;
+
+  async function openSupportedModal() {
+    document.getElementById('supportedModal').classList.add('open');
+    if (supportedCache) return;
+
+    const res  = await fetch('/supported');
+    supportedCache = await res.json();
+
+    const body = document.getElementById('supportedBody');
+    body.innerHTML = ['high', 'medium', 'low'].map(level => {
+      const items = supportedCache[level] || [];
+      if (!items.length) return '';
+      const m = RISK_META[level];
+      const cards = items.map(d => `
+        <div class="disease-card ${m.cardClass}">
+          <div class="disease-dot ${m.dotClass}"></div>
+          <div class="disease-info">
+            <div class="disease-simple">${d.simple_name}</div>
+            <div class="disease-name">${d.name}</div>
+          </div>
+        </div>
+      `).join('');
+      return `
+        <div class="risk-group">
+          <div class="risk-group-title ${m.titleClass}">${m.label}（${items.length} 種）</div>
+          <div class="disease-grid">${cards}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function closeSupportedModal(e) {
+    if (e && e.target !== document.getElementById('supportedModal')) return;
+    document.getElementById('supportedModal').classList.remove('open');
+  }
+
   async function analyze() {
     const file = fileInput.files[0];
     if (!file) return;
@@ -213,19 +596,19 @@
     analyzeBtn.style.display = 'none';
     document.getElementById('loading').style.display = 'block';
 
-    const formData = new FormData();
-    formData.append('image', file);
+    const [formData, base64Image] = await Promise.all([
+      Promise.resolve((() => { const fd = new FormData(); fd.append('image', file); return fd; })()),
+      fileToBase64(file)
+    ]);
 
-    const res = await fetch('/predict', { method: 'POST', body: formData });
+    const res  = await fetch('/predict', { method: 'POST', body: formData });
     const data = await res.json();
 
     document.getElementById('loading').style.display = 'none';
 
     document.getElementById('resSimpleName').textContent = data.simple_name;
-    document.getElementById('resProName').textContent = data.name;
-
+    document.getElementById('resProName').textContent    = data.name;
     document.getElementById('resDescription').textContent = data.description;
-
     document.getElementById('resSeverityText').textContent = data.severity_text;
     document.getElementById('resConfHint').textContent =
       'AI 判斷信心約 ' + data.confidence + '%（僅供參考）';
@@ -233,7 +616,10 @@
     const banner = document.getElementById('severityBanner');
     banner.className = 'severity-banner severity-' + data.severity_level;
 
-    document.getElementById('resAction').textContent = data.action;
+    document.getElementById('resAction').textContent    = data.action;
+    document.getElementById('resCare').textContent      = data.care;
+    document.getElementById('resAvoid').textContent     = data.avoid;
+    document.getElementById('resSeeDoctor').textContent = data.see_doctor;
 
     const barChart = document.getElementById('barChart');
     barChart.innerHTML = data.all_predictions
@@ -252,10 +638,43 @@
     document.getElementById('toggleDetails').textContent =
       '▶ 查看完整分析（醫療專業資訊）';
 
+    document.getElementById('emptyState').style.display = 'none';
     document.getElementById('resultCard').style.display = 'block';
     analyzeBtn.style.display = 'block';
+
+    saveToHistory(data, base64Image);
   }
 </script>
+
+<!-- Supported Diseases Modal -->
+<div class="sup-overlay" id="supportedModal" onclick="closeSupportedModal(event)">
+  <div class="sup-panel">
+    <div class="sup-header">
+      <h2>🩹 可辨識的皮膚問題</h2>
+      <button class="sup-close" onclick="document.getElementById('supportedModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="sup-body" id="supportedBody">
+      <p style="color:#bbb;text-align:center;padding:40px 0">載入中...</p>
+    </div>
+    <div class="sup-footer">
+      本系統為輔助初篩工具，實際診斷請諮詢醫師
+    </div>
+  </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h2>📂 歷史紀錄</h2>
+      <button class="modal-close" onclick="document.getElementById('historyModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="historyList"></div>
+    <div class="modal-footer">
+      <button class="clear-btn" onclick="clearAllHistory()">🗑 清除全部紀錄</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
